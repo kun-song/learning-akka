@@ -2,6 +2,8 @@
 
 * [Introduction](README.md)
 * [1 初识 Actor](chapter1/Introduction.md)
+    * [1.1 -> 1.4 基本介绍](chapter1/1.x.md)
+    * [1.5 第一个 Akka 程序](chapter1/1.5.md)
 * [2 Actor 与并发](chapter2/Introduction.md)
 * [3 传递消息](chapter3/Introduction.md)
 * [4 Actor 生命周期](chapter4/Introduction.md)
