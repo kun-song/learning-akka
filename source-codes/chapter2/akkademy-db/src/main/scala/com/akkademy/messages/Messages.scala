@@ -8,5 +8,7 @@ package com.akkademy.messages
   * case class 默认支持序列化、反序列化
   */
 case class SetRequest(key: String, value: Object)
+case class SetIfNotExists(key: String, value: Object)
 case class GetRequest(key: String)
+case class Delete(key: String)
 case class KeyNotFoundException(key: String) extends Exception

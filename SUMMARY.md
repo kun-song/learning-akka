@@ -10,6 +10,7 @@
     * [Promise、Future、事件驱动](chapter2/future.md)
     * [AkkademyDb](chapter2/db.md)
     * [客户端](chapter2/client.md)
+    * [练习](chapter2/exercise.md)
 * [3 传递消息](chapter3/Introduction.md)
 * [4 Actor 生命周期](chapter4/Introduction.md)
 * [5 纵向扩展](chapter5/Introduction.md)
