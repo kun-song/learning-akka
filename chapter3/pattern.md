@@ -113,5 +113,21 @@ class AskDemoArticleParser(cacheActorPath: String,
 
 ### ask 注意点
 
+#### 1. `onComplete` 中的回调函数在另外 `ExecutionContext` 中执行
+
+```Scala
+val senderRef = sender()
+```
+
+因为 `onComplete` 回调函数在另一个线程中执行，若在其中调用 `sender()` 无法获取 sender Actor，所以在 **主线程** 中将其放到一个变量中。
+
+#### 2. ask 必须设置 `Timeout`
+
+使用 ask 必须提供超时时间，例子中 **所有 ask** 使用了 **同一个超时时间**。
+
+合适的超时时间是很难确定的，太高太低都不行，需要分析生产环境的统计数据才能设置好。
+
+#### 3. 
+
 
 
