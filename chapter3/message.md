@@ -4,7 +4,7 @@
 
 消息最好是不可变的，但 Akka 并 **没有强制** 不可变，**可变引用** or **可变类型** 都会导致可变消息。
 
-### 最差的消息定义
+### 1. 最差的消息定义
 
 可变引用 + 可变类型：
 
@@ -22,7 +22,7 @@ val m = new Message(new StringBuffer("abc"))
 m.buffer = new StringBuffer("efg)
 ```
 
-### 次差的消息定义
+### 2. 次差的消息定义
 
 不可变引用 + 可变类型：
 
@@ -39,7 +39,7 @@ val m = new Message(new StringBuffer("abc"))
 m.append("cfg)
 ```
 
-### 不可变消息定义
+### 3. 不可变消息定义
 
 **不可变引用** + **不可变类型**：
 
@@ -49,7 +49,7 @@ class Message(buffer: String)
 
 * 将 `StringBuffer` 修改为 `String`；
 
-### `case class` 消息
+### 4. `case class` 消息
 
 Scala 中推荐使用 `case class` 定义消息：
 
