@@ -10,6 +10,12 @@
 
 最后是 RealWork 完成了消息指定的任务，而且处理结果需要发送给 ActorA 使用，此时 forward 非常适合。
 
-forward 非常简单，用 tell 也能实现同样的语义：只要为 tell 指定 reply address 为 `sender()` 即可。
+forward 非常简单，用 tell 也能实现同样的语义：只要手动为 tell 指定 **reply address** 为 `sender()` 即可：
+
+```Scala
+actor forward message
+
+actor.tell(message, sender())
+```
 
 forward 相比 tell 的优势是：语义更加清晰。
