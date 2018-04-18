@@ -206,33 +206,30 @@ object ClientActor {
 val clientActor = system.actorOf(ClientActor props "127.0.0.1:2552")
 ```
 
-若发生 Restart，由于初始化信息在构造函数中保存，不受影响。
+若在运行时发生 Restart，由于初始化信息在构造函数中保存，不受影响。
 
 **问题**：
 
 * 若初始化失败，根据监督策略，监督者将 stop clientActor，该方案依旧不完美！
 
-#### c. 
+#### c. Another 初始化消息
 
+为避免 `Actor` 初始化时发生错误，可以在 `preStart()` 中向 `Actor` **本身** 发送一条 Connect 消息：
 
+```Scala
+override def preStart = self ! Connect
+```
 
+这样一来：
 
+1. 只有 `Actor` 运行时才可能发生错误；
+2. 运行时发生错误时会 Restart；
 
+最后效果：`Actor` 不断尝试连接，直到成功。
 
+#### 遗留问题
 
+上面 3 种方式，都有以下问题：
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+1. 未处理 `Actor` **连接成功之前** 的消息；
+2. 若 `Actor` 长时间无法连接，则邮箱可能被 **填满**；
