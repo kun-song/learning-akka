@@ -151,4 +151,88 @@ Actor 不仅可以监控 **子 Actor**，也可以监控其他任意 Actor：
 
 ### 8. Safely restarting
 
+响应式系统，必须预知并处理错误，一个常见错误为：
+
+* 在 `Actor` 启动运行后才 **初始化其状态**
+* 且未处理状态初始化失败的场景
+
+在 `Actor` 启动、运行后，再向 `Actor` 发送初始化状态消息，则初始化过程中可能 **抛出异常**，运行时抛出异常，默认的监督策略会 Restart Actor，而若未考虑错误处理，则 Restart 过程中 **初始化消息可能丢失**。
+
+#### a. 初始化消息
+
+举例说明，假设 `ClientActor` 无初始化参数，当 `ClientActor` 启动后，通过传入 **初始化消息进** 行初始化：
+
+```Scala
+val clientActor = system.actorOf(Props[ClientActor])
+
+// 初始化
+clientActor ! Connect(host = xx, port = yy)
+```
+
+看起来一切合理，`clientActor` 启动运行，处理完 **第一个** 消息后，就能完成初始化，连接到远程数据库。
+
+之后，不断向 `clientActor` 发送消息，某一天，突然网络不可用（非常常见），导致 `clientActor` 抛出异常，根据默认的监督策略，将 Restart clientActor：
+
+1. 执行老 `ClientActor` 的 `preRestart`，并 stop 老 clientActor
+  + 此时 **老 Actor 的所有状态会丢失**，包括 host ip 信息
+2. 创建新 `ClientActor`，执行其构造器、`postRestart`
+
+新 `ClientActor` 启动运行后，继续处理消息，但是 **初始化消息** 导致的状态丢失了！
+
+#### b. 构造函数初始化
+
+因此更好的做法是将初始化信息作为构造函数的参数，通过 `Props` 传入：
+
+```Scala
+class ClientActor(remoteAddress: String) extends Actor {
+
+  private implicit val timeout = Timeout(5 seconds)
+  private implicit val system = ActorSystem("LocalSystem")
+
+  private val remoteDb = system.actorSelection(s"akka.tcp://akkademy@$remoteAddress/user/akkademy-db")
+
+  override def receive: Receive = ???
+
+}
+
+object ClientActor {
+  def props(address: String): Props = Props(classOf[ClientActor], address)
+}
+```
+
+使用：
+
+```Scala
+val clientActor = system.actorOf(ClientActor props "127.0.0.1:2552")
+```
+
+若发生 Restart，由于初始化信息在构造函数中保存，不受影响。
+
+**问题**：
+
+* 若初始化失败，根据监督策略，监督者将 stop clientActor，该方案依旧不完美！
+
+#### c. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
