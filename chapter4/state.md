@@ -208,4 +208,83 @@ object ActorFSM {
 }
 ```
 
-#### 定义容器 
+#### 定义状态容器 
+
+定义完 state，还需要定义 state container，状态容器部署存放状态的容器，而是 **存放消息** 的容器。
+
+使用 Scala 类型别名定义容器：
+
+```Scala
+object StateContainerTypes {
+  type RequestQueue = List[Request]
+}
+```
+
+#### 定义 FSM 中的行为
+
+使用 FSM 需要继承 `FSM[State, Container]`：
+
+```Scala
+class FSMActor extends FSM[State, RequestQueue]
+```
+
+使用 FSM 重写热交换的例子：
+
+```Scala
+import akka.actor.FSM
+import com.satansk.Messages.Request
+import com.satansk.StateContainerTypes.RequestQueue
+
+sealed trait State
+case object Disconnected extends State
+case object Connected extends State
+case object ConnectedAndPending extends State
+
+case object Flush
+
+object StateContainerTypes {
+  type RequestQueue = List[Request]
+}
+
+object Messages {
+  sealed trait Request
+
+  case object Connected
+  case class SetRequest(key: String, value: Object) extends Request
+  case class SetIfNotExists(key: String, value: Object) extends Request
+  case class GetRequest(key: String) extends Request
+  case class Delete(key: String) extends Request
+  case class KeyNotFoundException(key: String) extends Exception
+}
+
+class FSMActor(address: String) extends FSM[State, RequestQueue] {
+  val remoteDb = context.system.actorSelection(address)
+
+  // 初始状态
+  startWith(Disconnected, List.empty[Request])
+
+  when (Disconnected) {
+    case Event(Messages.Connected, queue: RequestQueue)   ⇒ if (queue.headOption.isEmpty) goto(Connected) else goto(ConnectedAndPending)
+    case Event(x: Messages.Request, queue: RequestQueue)  ⇒ remoteDb ! Messages.Connected; stay using (queue :+ x)
+    case x  ⇒ println("uhh didn't quite get that: " + x); stay()
+  }
+
+  when (Connected) {
+    case Event(x: Messages.Request, queue: RequestQueue)  ⇒ goto(ConnectedAndPending) using (queue :+ x)
+  }
+
+  when (ConnectedAndPending) {
+    case Event(Flush, queue)                ⇒ remoteDb ! queue; goto(Connected) using Nil
+    case Event(x: Messages.Request, queue)  ⇒ stay using (queue :+ x)
+  }
+
+  initialize()
+}
+```
+
+* `startWith(state, container)` 指定初始状态 + 初始容器；
+* `when` 描述在各个 state 下，接受不同消息后，`Actor` 的 state + container 转换；
+  + state 转换：`goto` & `stay`
+  + container 转换：`using`
+* 最后需要执行 `initialize()`
+
