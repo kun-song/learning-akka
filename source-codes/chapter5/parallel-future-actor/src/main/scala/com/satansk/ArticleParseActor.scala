@@ -10,6 +10,8 @@ import akka.actor.Actor
 class ArticleParseActor extends Actor {
   import ArticleParseActor._
 
+  context.system.dispatcher
+
   override def receive: Receive = {
     // 调用 ArticleParser.apply 解析 html
     case ParseArticle(html) ⇒ sender() ! ArticleParser(html)
