@@ -140,3 +140,133 @@ val future = Future(() =>println("run in ec"))
 
 ## 阻塞 IO 使用的 Dispatcher
 
+阻塞 IO 的操作应该在单独的 Dispatcher 中执行，假设有如下访问 db 的代码：
+
+```Scala
+import org.springframework.data.repository.CrudRepository;
+import java.util.List;
+
+public interface UserProfileRepository extends CrudRepository<UserProfile, Long> {
+  List<UserProfile> findById(Long id);
+}
+```
+
+`findById` 将阻塞当前线程，直到数据库返回值，这时一个 **阻塞操作**，若将其放在默认 Dispatcher 中执行：
+
+```Scala
+sender() ! userProfileRepository.findById(id)
+```
+
+若有多个 `findById` 调用，则可能 **所有线程** 都被阻塞，因此将 `findById` 放到独立的 Dispatcher 中执行。
+
+第一步，在 `application.conf` 中配置 Dispatcher：
+
+```Scala
+blocking-io-dispatcher {
+  type = Dispatcher
+  executor = "fork-join-executor"
+  fork-join-executor {
+    parallelism-factor = 50.0
+    parallelism-min = 10
+    parallelism-max = 100
+￼  }
+}
+```
+* `parallelism-factor` 每个 CPU 核心上最多 50 个线程
+* `parallelism-min` Dispatcher 最少包含 10 个线程
+* `parallelism-max` Dispatcher 最多包含 100 个线程
+
+第二步，查找配置好的 Dispatcher：
+
+```Scala
+val ec: ExecutionContext = context.system.dispatchers.lookup("blocking-io-dispatcher")
+```
+
+第三步，使用 Dispatcher：
+
+```Scala
+val future: Future[UserProfile] = Future{
+    userProfileRepository.findById(id)
+}(ec)
+```
+
+* 也可以将 `ExecutionContext` 声明为 `implicit val`，以免去手动把 `ec` 传递给 `Future` 的麻烦；
+
+## CPU 密集型操作 Dispatcher
+
+* JDBC 例子中，仅将 `Future` 的计算交由独立 Dispatcher 执行；
+* 本例中，将 `Actor` 所有任务交由独立 Dispatcher 执行；
+
+第二个目标有两种实现方式：
+
+* 定义 Dispatcher，将其用于 Actor Pool；
+* 使用 `BalancingPool` router，其内部使用 `BalancingDispatcher` 实现；
+
+### 1. 为 `Actor` 配置单独的 Dispatcher
+
+第一步，在 `application.conf` 中配置 Dispatcher：
+
+```Scala
+article-parsing-dispatcher {
+  type = Dispatcher
+  executor = "fork-join-executor"
+  
+  fork-join-executor {
+    parallelism-min = 2
+    parallelism-factor = 2.0
+    parallelism-max = 8
+   }
+
+  throughput = 50
+}
+```
+
+第二步，使用配置好的 Dispatcher 创建 `Actor`：
+
+```Scala
+val actors: List[ActorRef] = (0 to 7).map(_ => {
+  system.actorOf(Props(classOf[ArticleParseActor]).withDispatche("article-parsing-dispatcher"))
+}).toList
+```
+
+第三步，使用创建好的 `Actor`，例如用它们创建 router，以便用创建好的 Actor list 进行并行计算：
+
+```Scala
+val workerRouter = system.actorOf(
+  RoundRobinGroup(actors.map(_.path.toStringWithoutAddress.toList).props(), "workerRouter"))
+
+workRouter.tell(new ParseArticle(TestHelper.file), self());
+```
+
+### 2. 使用 `BalancingPool`/`BalancingDispatcher`
+
+`BalancingPool` 是一种 router 类型，底层使用 `BalancingDispatcher` 实现，它有如下特点：
+
+* `BalancingPool` 中所有 `Actor` **共享同一个邮箱**；
+* 通过工作窃取机制为空闲 `Actor` 分配任务；
+
+因此，只要邮箱有任务，`BalancingPool` 能保证没有任务空闲 `Actor` 存在，保证大部分 `Actor` 都在工作中，从而提高资源利用率。
+
+第一步，在 `application.conf` 中配置 Dispatcher：
+
+```Scala
+pool-dispatcher {
+  fork-join-executor { # force it to allocate exactly 8 threads
+    parallelism-min = 8
+    parallelism-max = 8
+  }
+  }
+```
+
+* Dispatcher 中，正好有 8 个线程；
+
+第二步，创建 `BalancingPool` Router：
+
+```Scala
+val workerRouter = system.actorOf(BalancingPool(8).props(Props(classOf[ArticleParseActor])),
+ "balancing-pool-router")
+```
+
+* pool 中的 `Actor` 数量最好与 Dispatcher 中线程数量一致！
+
+>`BalancingPool` 是为 **本地 `Actor` 资源** 均衡负载的绝佳方式！
