@@ -29,6 +29,8 @@
     * [Actor + Router 并行编程](chapter5/actor-router.md)
     * [Dispatcher 隔离性能风险](chapter5/dispatcher.md)
 * [6 横向扩展 -- 集群化](chapter6/Introduction.md)
+    * [集群](chapter6/cluster-intro.md)
+    * [CAP](chapter6/cap.md)
 * [7 处理邮箱问题](chapter7/Introduction.md)
 * [8 测试与设计](chapter8/Introduction.md)
 * [9 尾声](chapter9/Introduction.md)
